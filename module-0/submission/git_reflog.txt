@@ -1,0 +1,11 @@
+42485a8 HEAD@{2026-09-23 23:00:07 +0800}: commit: Expand final reflection
+43378cb HEAD@{2026-09-23 22:49:42 +0800}: commit: Document what I learned
+ae660cf HEAD@{2026-09-23 22:47:13 +0800}: checkout: moving from main to main
+ae660cf HEAD@{2026-09-23 22:39:43 +0800}: checkout: moving from 85dfecaf6a250c9016a848aee2c20be6b740b4dc to main
+85dfeca HEAD@{2026-09-23 22:39:29 +0800}: checkout: moving from main to 85dfeca
+ae660cf HEAD@{2026-09-23 22:38:22 +0800}: checkout: moving from main to main
+ae660cf HEAD@{2026-09-23 22:37:48 +0800}: commit: Add ResNet MNIST inference, accuracy: 82.7800%
+f9a59b8 HEAD@{2026-09-23 20:19:55 +0800}: commit: Change hello world to aloha
+85dfeca HEAD@{2026-09-23 20:19:33 +0800}: checkout: moving from for_fun to main
+85dfeca HEAD@{2026-09-23 20:19:25 +0800}: checkout: moving from main to for_fun
+85dfeca HEAD@{2026-09-23 20:13:23 +0800}: commit (initial): Add readme with hello world

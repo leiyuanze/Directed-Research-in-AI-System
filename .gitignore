@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 数据与训练中间产物（不入库）
+module-1/data/
+module-1/wandb/
+
+# LaTeX 中间文件
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.xdv
+*.out
+*.blg
+*.bbl
+*.brf
