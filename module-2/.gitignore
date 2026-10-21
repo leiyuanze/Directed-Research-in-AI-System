@@ -1,0 +1,31 @@
+# 课程提供的数据集与大规模中间产物（不随仓库分发）
+color/
+depth/
+camera.json
+task1_inputs/
+task1_selected/
+*.ply
+*.npy
+
+# 中间结果（报告图已包含所需可视化）
+task2_results/
+task1_da_outputs/
+task1_da_outputs_large/
+task1_da_scale_compare/
+
+# notebook / Python 缓存
+.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+hw.ipynb.bak
+
+# LaTeX 中间文件
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.xdv
+*.out
+*.blg
+*.bbl
+*.brf

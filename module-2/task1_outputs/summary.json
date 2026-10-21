@@ -1,0 +1,142 @@
+{
+  "official_test1": {
+    "input": "official_test1.png",
+    "model_input_size": [
+      384,
+      384
+    ],
+    "depth": {
+      "shape": [
+        512,
+        512
+      ],
+      "min": 0.9401990175247192,
+      "max": 0.9971533417701721,
+      "mean": 0.9653379917144775,
+      "seconds": 1.1403
+    },
+    "normal": {
+      "shape": [
+        384,
+        384,
+        3
+      ],
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.39084604382514954,
+      "seconds": 0.1829
+    }
+  },
+  "official_test4": {
+    "input": "official_test4.png",
+    "model_input_size": [
+      384,
+      384
+    ],
+    "depth": {
+      "shape": [
+        512,
+        512
+      ],
+      "min": 0.9248422384262085,
+      "max": 1.0,
+      "mean": 0.9756036996841431,
+      "seconds": 0.2847
+    },
+    "normal": {
+      "shape": [
+        384,
+        384,
+        3
+      ],
+      "min": 0.0,
+      "max": 0.9613669514656067,
+      "mean": 0.34228184819221497,
+      "seconds": 0.2176
+    }
+  },
+  "official_test5": {
+    "input": "official_test5.png",
+    "model_input_size": [
+      384,
+      384
+    ],
+    "depth": {
+      "shape": [
+        512,
+        512
+      ],
+      "min": 0.9187157154083252,
+      "max": 0.9958114624023438,
+      "mean": 0.9581828117370605,
+      "seconds": 0.1526
+    },
+    "normal": {
+      "shape": [
+        384,
+        384,
+        3
+      ],
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.4463143050670624,
+      "seconds": 0.1936
+    }
+  },
+  "outdoor_real": {
+    "input": "outdoor_real.jpg",
+    "model_input_size": [
+      384,
+      384
+    ],
+    "depth": {
+      "shape": [
+        512,
+        512
+      ],
+      "min": 0.5944108963012695,
+      "max": 1.0,
+      "mean": 0.9482678174972534,
+      "seconds": 0.1283
+    },
+    "normal": {
+      "shape": [
+        384,
+        384,
+        3
+      ],
+      "min": 0.02473415434360504,
+      "max": 0.9033032059669495,
+      "mean": 0.3487449586391449,
+      "seconds": 0.1956
+    }
+  },
+  "sketch": {
+    "input": "sketch.jpg",
+    "model_input_size": [
+      384,
+      384
+    ],
+    "depth": {
+      "shape": [
+        512,
+        512
+      ],
+      "min": 0.9610514044761658,
+      "max": 1.0,
+      "mean": 0.9700883030891418,
+      "seconds": 0.1535
+    },
+    "normal": {
+      "shape": [
+        384,
+        384,
+        3
+      ],
+      "min": 0.0002779066562652588,
+      "max": 0.993198573589325,
+      "mean": 0.3590829074382782,
+      "seconds": 0.2015
+    }
+  }
+}
