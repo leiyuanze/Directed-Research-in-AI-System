@@ -1,0 +1,347 @@
+% Module 3: Cognitive Reasoning -- course essay
+% Compile with XeLaTeX: latexmk -xelatex report.tex
+\documentclass{article}
+
+\PassOptionsToPackage{numbers,compress}{natbib}
+\usepackage[final]{template22}
+\input{config.tex}
+
+\title{Learning from Surprise:\\
+Prediction Error as a Functional Bridge Between Adaptive Networks and Infant Exploration}
+
+\author{%
+  Yuanze Lei \quad 2510124204\\
+  Peking University
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Prediction error---the gap between what we expect and what actually happens---plays a
+central role in two very different literatures. In the theory of adaptive networks, Sutton
+and Barto (1981) used it to explain how a simple learning element can anticipate future
+reward. In developmental psychology, Stahl and Feigenson (2015) showed that 11-month-old
+infants learn more about an object when it violates their expectations. This essay compares
+the two papers, critically examines the infant experiments, and asks what AI should take
+from them. I argue that AI should borrow the functional principles behind biological
+learning---prediction-error-driven learning, selective curiosity, and structured
+priors---without trying to copy the brain's hardware.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+
+Modern AI is very good at recognising patterns, generating text, and playing games. It is
+much worse at the questions a toddler answers every day: which parts of experience matter,
+when to change one's mind, and how to use old knowledge in a new situation. Large models
+learn from far more data than a child ever sees, yet they still struggle with continual
+learning, generalisation, and efficient exploration.
+
+Two research traditions have looked at these questions from opposite sides. Adaptive-network
+theory asks how simple learning units can pick up predictive structure from experience.
+Developmental psychology asks how infants choose what to learn from an overwhelming world.
+The two fields use different methods and words, but they have reached a similar conclusion:
+\emph{violations of expectation are valuable learning signals}. The conclusion is
+functional: it is about the role of prediction error in a learning system, not about the
+physical material that implements that role.
+
+This essay has four parts. Section~\ref{sec:history} traces Sutton and Barto's (1981) idea
+from animal conditioning to modern reinforcement learning. Section~\ref{sec:critique}
+examines Stahl and Feigenson's (2015) four experiments and asks how strong their evidence
+really is. Section~\ref{sec:bio} argues that AI should have a \emph{functional} biological
+basis and derives three design principles. Section~\ref{sec:reflection} gives my own
+reflections.
+
+\section{Historical Context and Modern Applications}\label{sec:history}
+
+\subsection{From ``happening together'' to ``predicting what comes next''}
+
+An early view of learning was based on contiguity: when two events happen together, they
+become associated. Hebb's famous rule says that neurons which fire together strengthen
+their connection \citep{hebb1949organization}. The rule is simple, but it cannot explain
+some basic findings. Suppose one cue already predicts food perfectly. A second cue that
+appears at the same time may learn very little---an effect called blocking. Contiguity
+alone does not explain why some cues matter and others do not.
+
+The Rescorla--Wagner model gave an answer \citep{rescorla1972theory}. Learning depends on
+the gap between the outcome that actually occurs and the outcome predicted by all
+available cues:
+\begin{equation}\label{eq:rw}
+  \Delta V_i = \alpha_i \beta \left(\lambda - \sum_j V_j\right).
+\end{equation}
+Here $\lambda$ is the size of the outcome, and $\sum_j V_j$ is the total prediction. If the
+outcome is fully predicted, the gap is zero and nothing is learned. If the outcome is
+better than expected, learning is positive; if it is worse, learning is negative
+(extinction). The prediction error is the teacher.
+
+Sutton and Barto's \emph{Toward a Modern Theory of Adaptive Networks: Expectation and
+Prediction} (1981) added time to this picture \citep{sutton1981toward}. Their ``adaptive
+element'' is a single unit that mimics conditioning, but it is built to match animal
+learning more closely than earlier network units. The key feature is that conditioning is
+\emph{predictive}: an animal does not simply react to a stimulus; it anticipates what comes
+next. The element learns to increase its response rate before the reward arrives.
+
+Three points stand out. First, what is learned is a prediction, not a reaction to the
+present. Second, the learning signal is a gap between prediction and outcome, measured at
+several points in time. Third, computer simulations showed that the element becomes
+sensitive to the most reliable, non-redundant, and earliest predictors of reward. The model
+also avoided stability and saturation problems that had troubled earlier networks. The
+paper ends by linking the model to synaptic physiology, placing it at the border of
+behaviour, computation, and biology.
+
+\subsection{From one element to an industry}
+
+The functional core of the 1981 model---learning from bootstrapped prediction
+error---became central to reinforcement learning. In temporal-difference (TD) learning,
+the value of a state is updated using the difference between the current prediction and a
+better-informed prediction made one step later:
+\begin{equation}\label{eq:td}
+  \delta_t = r_{t+1} + \gamma V(s_{t+1}) - V(s_t), \qquad
+  V(s_t) \leftarrow V(s_t) + \alpha \delta_t .
+\end{equation}
+In plain words: the next moment gives a slightly better guess than the current moment, and
+the difference is used to correct the current guess. This is the ``prediction of
+prediction'' idea from 1981, later formalised as TD($\lambda$)
+\citep{sutton1988learning} and combined with deep networks in DQN \citep{mnih2015human}.
+
+A striking biological result supports this picture. Schultz, Dayan, and Montague found
+that dopamine neurons in the midbrain show the signature of a reward prediction error:
+they fire more when reward is better than expected, not at all when reward is fully
+predicted, and less when an expected reward is omitted \citep{schultz1997neural}. The
+biology is far more complex than a single number, but the computational role is the same.
+
+Modern systems keep the function but change the implementation. Three differences matter.
+First, the \emph{target} has changed: Sutton and Barto tried to explain animal
+conditioning, while modern reinforcement learning optimises an engineered objective. In
+language models trained with human feedback, the reward comes from a learned preference
+model \citep{ouyang2022training}, not from food or pain. Second, the \emph{scale} has
+changed: a single element with scalar predictions has become deep networks with replay
+buffers, target networks, and many parallel actors \citep{mnih2015human}. Third,
+\emph{biological plausibility} has stopped being a design constraint: the 1981 paper links
+its element to synaptic biochemistry, whereas modern systems use global backpropagation
+and centralised training, neither of which is a realistic model of the brain.
+
+What survives is not a piece of anatomy but a principle: a learner should use the gap
+between prediction and outcome to update its model, and it should propagate that gap
+backwards in time. This is the first piece of evidence for the thesis in
+Section~\ref{sec:bio}: biological inspiration can be useful even when the biological
+material is left behind.
+
+\section{Critical Analysis of Modern Research}\label{sec:critique}
+
+\subsection{What the four experiments actually did}
+
+Stahl and Feigenson's \emph{Observing the Unexpected Enhances Infants' Learning and
+Exploration} (2015) starts from a simple problem: a baby cannot learn everything, so how
+does she decide what to learn? Their answer is that violations of expectation act as a
+filter. Infants already have ``core knowledge'' about objects---for example, that solid
+objects cannot pass through walls, and that objects need support
+\citep{spelke2007core}. When an event breaks one of these rules, the baby may treat it as a
+special chance to learn.
+
+Because infants cannot speak, the researchers used two measures: where the baby looked,
+and how the baby played. Across four experiments ($N=110$), all participants were 11
+months old.
+
+Experiment~1 ($N=40$) had four groups. In the solidity event, a toy car rolled down a ramp
+toward a wall. Half the infants saw the car stop at the wall (consistent); the other half
+saw it pass through (violation). In the continuity event, a ball was hidden behind the left
+screen; when both screens were lifted, the ball was either still behind the left screen
+(consistent) or behind the right screen (violation). Every infant saw the outcome for only
+10 seconds.
+
+Next, the experimenter taught the infant a new property of the object: when the object was
+moved, a squeaking sound played from a hidden speaker. Finally, the infant saw the target
+object and a new distractor object. In the baseline phase, both objects were still. In the
+test phase, both objects moved and the taught sound played. If the infant had learned
+``this object makes this sound'', she should look more at the target when the sound played.
+The learning score was the proportion of looking at the target during the test minus the
+proportion during the baseline.
+
+The violation groups learned (solidity: $t(9)=3.09$, $p=.01$; continuity: $t(9)=3.72$,
+$p=.005$). The consistent groups did not ($p=.31$ and $p=.14$). The overall difference was
+significant ($F(1,36)=10.69$, $p=.002$, partial $\eta^2=.23$).
+
+Experiment~2 ($N=20$) repeated the violation condition but played a new sound at test. The
+learning score was close to zero ($p=.18$ and $p=.97$). The authors concluded that the
+effect in Experiment~1 was about learning a specific object--sound link, not a general
+preference for the surprising object.
+
+Experiment~3 ($N=10$) repeated the continuity violation but taught a new object that had
+not been part of the violation. The infants did not learn ($p=.94$), and this differed from
+Experiment~1 ($p=.048$). The authors concluded that the effect was specific to the object
+that had broken expectations, not a general increase in arousal.
+
+Experiment~4 ($N=40$) looked at exploration. Infants saw either a solidity violation (car
+through wall) or a support violation (car floating beyond the table edge). They then
+played freely with the target object and a new distractor for 60 seconds. Infants in the
+violation conditions explored the target more ($p=.02$). Their actions also matched the
+type of violation: after a solidity violation they banged the object more ($p=.029$);
+after a support violation they dropped it more ($p=.056$, marginal). The same pattern did
+not appear for the distractor object ($p=.80$).
+
+\subsection{How strong is the evidence?}
+
+The study has real strengths. The events were matched in every respect except the outcome,
+and every infant saw the outcome for exactly 10 seconds. There was no difference between
+conditions in looking time at the outcome ($F(1,36)=0.002$, $p=.96$), so the result cannot
+be explained by longer exposure. The hidden property was genuinely new, so the test
+measured learning rather than recognition. Experiments~2 and~3 were designed as controls,
+and the double dissociation in Experiment~4 is a strong sign of specificity.
+
+But the evidence is not as clean as the paper's language suggests. The weakest point is
+Experiment~2. The authors argue that if infants simply preferred the surprising object,
+they should look at it in Experiment~2 as well, because the object was the same. But the
+learning score is a difference score: test minus baseline. If an infant likes the object
+equally in both phases, the score is zero whether or not any learning occurred. A zero
+score therefore cannot separate ``no learning'' from ``a constant preference for the
+object''. Experiment~2 provides some evidence against a general visual preference, but it
+does not settle the question.
+
+Experiment~1 does more work here, because it subtracts the baseline. The violation groups
+showed a larger increase from baseline to test than the consistent groups. Still, the
+baseline (5 seconds, objects still) and the test (10 seconds, objects moving, sound
+playing) are not perfectly comparable. A ``surprise + movement'' effect could produce part
+of the increase.
+
+Other limits are worth noting. The samples are small (ten infants per cell), and a
+non-significant result in Experiment~2 is not proof of no effect. The ``learning'' is an
+arbitrary object--sound mapping, not an understanding of solidity or support. All
+participants were 11 months old and tested in a laboratory, so the findings may not
+generalise across ages, cultures, or species. Effect sizes are moderate, and one key
+contrast in Experiment~4 is only marginal ($p=.056$).
+
+Overall, the hypothesis--design--conclusion chain is largely consistent. The study
+convincingly shows that violations change what infants learn and how they explore. It does
+not fully separate learning from attention, and its control for visual preference is
+weaker than the paper claims.
+
+\subsection{Why this matters for AI}
+
+The infant result does not mean ``maximise surprise''. It means that a violation should
+identify \emph{which object} and \emph{which hypothesis} deserve attention. This matters
+for AI, where raw surprise is easy to exploit: an agent rewarded for prediction error may
+stare at a noisy television instead of learning about the world. Curiosity-driven methods
+such as self-supervised prediction \citep{pathak2017curiosity} try to avoid this, but the
+deeper lesson is that curiosity should be gated by relevance and learnability, not by the
+size of the error alone.
+
+There is also a warning for the analogy. Infants' expectations come from core knowledge
+that is present before the experiment. An AI's expectations come from its training data.
+A ``violation'' for an AI may be a distribution shift, not a physical anomaly. The
+comparison is useful only if we treat it as a hypothesis about function, not as an identity
+between babies and machines.
+
+\section{Biological Foundations in AI Development}\label{sec:bio}
+
+\subsection{The thesis}
+
+My thesis is that future AI systems \emph{should} have a biological basis, but the right
+basis is functional rather than anatomical. AI should borrow the computational roles that
+biological systems give to prediction error, surprise, and structured priors. It does not
+need to copy neurons, synapses, or brain regions.
+
+The difference matters because ``biological basis'' can mean two things. At the
+implementation level, it means spiking neurons, synaptic plasticity, and detailed anatomy.
+At the functional level, it means principles such as error-driven learning, selective
+attention, curiosity, compositionality, and hierarchical control. The first is a research
+programme in its own right, but it is not a requirement for better learning systems. The
+second is more tractable and more directly supported by the two papers.
+
+\subsection{Three design principles}
+
+\paragraph{P1: Prediction error should be a first-class learning signal.}
+The Rescorla--Wagner model, the 1981 element, and TD learning all replace a passive
+association with an active prediction, and use the error of that prediction as the teacher.
+Dopamine data support this at the biological level \citep{schultz1997neural}, and
+self-supervised prediction supports it in AI \citep{pathak2017curiosity}. The design
+implication is simple: train systems not only on external rewards or labels, but also on
+auxiliary predictions about what will happen next. World models, model-based planning, and
+self-supervised prediction are natural examples.
+
+\paragraph{P2: Surprise should select what to learn, and learnability should gate the choice.}
+The infants in Stahl and Feigenson's study do not explore everything after a violation.
+They explore the object that broke their expectations, and they perform actions that match
+the type of violation. This is a scheduling policy, not a single curiosity score.
+Intrinsic motivation has a long history in AI \citep{schmidhuber2010formal}, but raw
+prediction error can be gamed. A better translation uses surprise to propose hypotheses,
+then allocates effort according to expected information gain, learning progress, or
+controllability. The key word is \emph{targeted}.
+
+\paragraph{P3: Structured, compositional priors should constrain the hypothesis space.}
+Core knowledge gives infants a small set of abstract expectations about objects, agents,
+and number \citep{spelke2007core}. These expectations do not tell infants what to believe;
+they tell them which hypotheses are worth considering. The AI analogue is not a hand-coded
+knowledge base. It is a set of architectural biases: object-centric representations,
+modular and hierarchical networks, and compositional structures that support systematic
+generalisation. Lake and colleagues make a related argument when they propose that
+human-like machines should build causal world models, ground learning in intuitive
+theories, and exploit compositionality and learning-to-learn \citep{lake2017building}.
+
+\subsection{Why not copy the brain?}
+
+Three reasons favour functional grounding. First, we still do not understand biological
+learning in enough detail; building around a simplified synaptic story risks turning a
+metaphor into a design constraint. Second, engineering matters: global backpropagation,
+large-scale parallelism, and centralised training work extremely well even though they are
+not biologically plausible. Third, the history of TD learning is a proof of concept. It
+began as a model of animal conditioning, was supported by dopamine recordings, and then
+became central to systems that make no claim to biological realism. The principle survived
+because it could be separated from its substrate.
+
+The obvious objection is that scale alone may produce these abilities. This is a serious
+position, and it should not be dismissed. But scale buys competence; it does not
+automatically buy sample-efficient exploration, continual learning, or causal
+understanding. The question is empirical: do biologically inspired inductive biases
+reduce the sample complexity of the abilities we care about? The debate should be settled
+with benchmarks that isolate each principle---for example, comparing learnability-gated
+curiosity with raw surprise on noisy-TV and continual-learning tasks.
+
+\section{Personal Insights and Reflections}\label{sec:reflection}
+
+What I find most striking is that both papers treat surprise as a \emph{selection}
+mechanism rather than an error to be suppressed. In most machine learning, surprise is a
+symptom of failure. In both literatures, it is also an opportunity: it marks the part of
+the world where the current model is wrong and where learning is likely to be most
+valuable. That reframing turns a scalar loss into a policy over what to investigate next.
+
+This matters for language models. Pre-training is token-level prediction-error
+minimisation, and reinforcement learning from human feedback adds a preference-based
+reward \citep{ouyang2022training}. But current systems have no explicit mechanism for using
+surprise to decide when to ask a question, run an experiment, or update an internal model.
+A model that could notice when its prediction is unreliable, generate a targeted probe,
+and incorporate the result would be closer to the infant in Stahl and Feigenson's study
+than a model that simply scales up next-token prediction.
+
+I am also struck by the risks. It is easy to anthropomorphise the infant results and assume
+that an agent with a curiosity reward is doing what a baby does. The analogy hides
+important differences: infants have core knowledge, bodies, and a developmental history;
+current agents have training distributions, reward models, and offline datasets. If
+surprise is optimised directly, agents may seek unpredictable noise rather than learnable
+structure. The infant evidence suggests a corrective: the value of a violation lies not in
+its novelty, but in its relevance to a specific hypothesis.
+
+My own view is cautiously optimistic about functional biological grounding and sceptical
+about anatomical imitation. Cognitive science is most useful to AI when it formulates the
+right questions---what to learn, when to revise, how to generalise---rather than when it
+supplies a blueprint for implementation.
+
+\section{Conclusion}\label{sec:conclusion}
+
+Prediction error connects an adaptive element designed to explain animal conditioning, a
+temporal-difference algorithm that became a cornerstone of reinforcement learning, and an
+infant who learns more about an object that has just broken her expectations. The two
+papers are separated by 34 years, two disciplines, and very different methods, yet they
+reach the same functional claim: a learner should treat violations of expectation as
+invitations to learn.
+
+AI should take that claim seriously, but not literally. It does not need spiking neurons or
+a copy of the brain. It needs learning systems whose errors drive representation learning,
+whose surprise is selective and learnability-gated, and whose representations are
+structured enough to support composition and generalisation. Biology supplies the
+principles; engineering supplies the rest.
+
+\bibliographystyle{plainnat}
+\bibliography{reference}
+
+\end{document}

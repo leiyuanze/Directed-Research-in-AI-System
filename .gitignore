@@ -16,3 +16,7 @@ module-1/wandb/
 *.blg
 *.bbl
 *.brf
+
+# 本机编译预览与暂存目录
+module-*/report/preview/
+module-*/.stage_submit/

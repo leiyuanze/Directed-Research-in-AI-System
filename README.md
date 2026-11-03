@@ -7,6 +7,8 @@
 | **Module 0** | Git / GitHub / Hugging Face 实践：冻结 ResNet-50 + 10 类特征原型做 MNIST 推理（82.78%） | [`module-0/`](module-0) |
 | **Module 1** | 机器学习：CIFAR-10 上的 SimpleCNN / SimpleViT / SimpleComposition（含报告与 checkpoint） | [`module-1/`](module-1) |
 | **Module 2** | 计算机视觉：Omnidata 单目深度/法线估计 + 多视角 RGB-D TSDF 重建（含 5 页报告与 Blender 渲染） | [`module-2/`](module-2) |
+| **Module 3** | 认知推理：预测误差、婴儿探索与 AI 学习原则（6 页 full essay） | [`module-3/`](module-3) |
+| **Module 4** | 机器人：方块堆叠规划、抓取避碰与深度相机闭环感知（5 页 short report） | [`module-4/`](module-4) |
 
 ## Module 0
 
@@ -32,3 +34,15 @@
 - `module-2/ML2_2510124204_submission.zip` — Gradescope 提交包
 
 关键结果：相机位姿右乘 `diag(1,-1,-1,1)` 后，重建包围盒 `0.99 x 1.36 x 0.93 m`，与 `recon_tgt.ply` 的顶点集完全一致（最大坐标误差 0.0 mm）。
+
+## Module 3
+
+- `module-3/report/report_new.pdf` — 6 页 full essay，分析 Sutton & Barto（1981）与 Stahl & Feigenson（2015）
+- `module-3/report/report.tex` — 可复现的 XeLaTeX 源文件
+- `module-3/ML3_2510124204_submission.zip` — Gradescope 提交包
+
+## Module 4
+
+- `module-4/report/report.pdf` — 5 页 short report（规划伪代码、抓取避碰、RGB-D 感知与失败恢复）
+- `module-4/report/report.tex` — 含 TikZ 示意图、算法和参考文献的可复现源文件
+- `module-4/ML4_2510124204_submission.zip` — Gradescope short assignment 提交包
