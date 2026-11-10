@@ -9,6 +9,7 @@
 | **Module 2** | 计算机视觉：Omnidata 单目深度/法线估计 + 多视角 RGB-D TSDF 重建（含 5 页报告与 Blender 渲染） | [`module-2/`](module-2) |
 | **Module 3** | 认知推理：预测误差、婴儿探索与 AI 学习原则（6 页 full essay） | [`module-3/`](module-3) |
 | **Module 4** | 机器人：方块堆叠规划、抓取避碰与深度相机闭环感知（5 页 short report） | [`module-4/`](module-4) |
+| **Module 5** | 自然语言处理：用 BCG 记录 Agent 轨迹，并通过最薄弱信念验证反馈干预 Agent（5 页 short report） | [`module-5/`](module-5) |
 
 ## Module 0
 
@@ -46,3 +47,9 @@
 - `module-4/report/report.pdf` — 5 页 short report（规划伪代码、抓取避碰、RGB-D 感知与失败恢复）
 - `module-4/report/report.tex` — 含 TikZ 示意图、算法和参考文献的可复现源文件
 - `module-4/ML4_2510124204_submission.zip` — Gradescope short assignment 提交包
+
+## Module 5
+
+- `module-5/report/report.pdf` — 5 页 short report（BCG 增量轨迹图、来源与置信度、最薄弱节点验证、BrowseComp 与 token 成本评测方案）
+- `module-5/report/report.tex` — 含系统反馈图和评测表的 XeLaTeX 源文件
+- `module-5/ML5_2510124204_submission.pdf` — Gradescope short assignment 的 PDF 提交件
