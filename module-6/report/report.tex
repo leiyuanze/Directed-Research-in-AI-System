@@ -1,0 +1,271 @@
+% Module 6: AI Hardware and Acceleration - Short Assignment
+% Compile with XeLaTeX: latexmk -xelatex report.tex
+\documentclass{article}
+
+\PassOptionsToPackage{numbers,compress}{natbib}
+\usepackage[final]{template22}
+\input{config.tex}
+
+\title{Matrix Multiplication in NumPy and PyTorch:\\
+A Controlled CPU Timing Study}
+
+\author{%
+  Yuanze Lei \quad 2510124204\\
+  Peking University
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report compares matrix multiplication through \numpy and \pytorch on the
+same CPU, input dtype, problem shapes, and thread budget. The benchmark covers
+five square sizes and three tensor ranks, producing 15 measured conditions on
+an AMD Ryzen 7 5800H. In this controlled run, \pytorch has its clearest
+advantage at size 128, where the median speedup over \numpy is 3.26$\times$ for
+2D inputs and 4.42$\times$ for 3D inputs. The advantage narrows as matrices
+grow and is approximately parity at size 1024. Rank-3 and rank-4 inputs perform
+almost identically because both process four independent matrices, showing that
+the amount of batched work matters more than the extra indexing dimension
+alone. The results are hardware- and library-specific, so the report separates
+observed timings from general claims about either framework.
+\end{abstract}
+
+\section{Question and Scope}\label{sec:scope}
+
+Matrix multiplication is a basic operation in numerical computing and a useful
+stress test for software acceleration. A call that looks identical at the
+Python level can take different paths inside \numpy \citep{harris2020numpy} and
+\pytorch \citep{paszke2019pytorch}: data layout, dispatch, threading,
+allocation, and BLAS kernels all affect the measured time. We therefore ask two
+concrete questions:
+\begin{enumerate}[leftmargin=1.3em,itemsep=1pt,topsep=2pt]
+  \item How do the median call times of \numpy and \pytorch change with matrix
+        size?
+  \item How does the speedup ratio change with matrix size and tensor rank?
+\end{enumerate}
+
+The short assignment requires Task~1 only, so both frameworks run on the CPU.
+Keeping the device fixed isolates the framework and kernel-selection effect.
+It also avoids attributing a GPU advantage to the library name. The submitted
+script, JSON measurements, plots, and this report are the complete short
+submission.
+
+\section{Experimental Design}\label{sec:method}
+
+\subsection{Environment and controls}
+
+All measurements were collected on 2026-11-13. Table~\ref{tab:environment}
+records the execution environment. The machine also has an idle NVIDIA RTX
+3050 Ti Laptop GPU, but it was not used; both frameworks were explicitly kept
+on the CPU.
+
+\begin{table}[t]
+\caption{Controlled execution environment.}
+\label{tab:environment}
+\centering
+\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Component & Configuration \\
+\midrule
+CPU & AMD Ryzen 7 5800H, 8 cores / 16 logical processors, 3.2 GHz nominal \\
+Memory & 16 GiB \\
+Operating system & Windows 11, build 26300 \\
+Python & 3.9.12 \\
+\numpy & 2.4.4, linked to OpenBLAS 0.3.31 \\
+\pytorch & 2.12.0+cu126, CPU execution with MKL enabled \\
+Threads & 8 for OpenBLAS and PyTorch; one inter-op thread \\
+Data type & contiguous \texttt{float32} arrays and tensors \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Workloads}
+
+For side length $s$, the benchmark uses the following matched pairs of inputs:
+\begin{equation}\label{eq:shapes}
+\begin{aligned}
+\text{2D:}\quad &(\mathbf A,\mathbf B)\in\mathbb R^{s\times s}
+  \times \mathbb R^{s\times s},\\
+\text{3D:}\quad &(\mathbf A,\mathbf B)\in\mathbb R^{4\times s\times s}
+  \times \mathbb R^{4\times s\times s},\\
+\text{4D:}\quad &(\mathbf A,\mathbf B)\in\mathbb R^{2\times 2\times s\times s}
+  \times \mathbb R^{2\times 2\times s\times s}.
+\end{aligned}
+\end{equation}
+The sizes are $s\in\{64,128,256,512,1024\}$. Rank-3 and rank-4 inputs both
+contain four independent matrix products. This lets the experiment compare
+rank at nearly constant arithmetic work instead of increasing rank and batch
+size at the same time.
+
+Both frameworks receive the same random values, generated with a fixed seed for
+each condition. Before timing, the implementation verifies that the two outputs
+agree with \texttt{np.allclose} using $\mathrm{rtol}=\mathrm{atol}=10^{-4}$.
+The timed expression is \texttt{np.matmul(A, B)} or
+\texttt{torch.matmul(A, B)}; input construction and device transfer are outside
+the timed region. Output allocation is included because it is part of a normal
+call. For each condition, two warm-up calls precede the measurements. Timed
+calls alternate between frameworks to reduce systematic cache and frequency
+bias. The reported value is the median of 10--20 calls, selected adaptively so
+that larger workloads receive fewer repetitions.
+
+\subsection{Metric}
+
+For each matched condition, the improvement ratio is
+\begin{equation}\label{eq:speedup}
+  S(s,d)=\frac{\operatorname{median}(t_{\numpy}(s,d))}
+              {\operatorname{median}(t_{\pytorch}(s,d))}.
+\end{equation}
+Thus $S>1$ means that PyTorch is faster. Values near one indicate that the
+framework-level difference is small relative to run-to-run variation. Time is
+measured with \texttt{time.perf\_counter} and is stored in seconds in
+\texttt{results.json}; plots use milliseconds for readability.
+
+\section{Results}\label{sec:results}
+
+Figure~\ref{fig:timing} shows the median time per call. All conditions remain
+positive and finite, and the raw values are listed in
+Table~\ref{tab:measurements}. The dominant trend is the growth with matrix
+size. For 2D inputs, time rises from 0.023 ms at $s=64$ to 7.319 ms at
+$s=1024$. The rank-3 and rank-4 cases reach roughly 29--31 ms at $s=1024$
+because each call computes four matrices. This is consistent with the cubic
+increase in arithmetic work per matrix and the additional memory traffic of the
+batched outputs.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{timing_by_rank.pdf}
+  \caption{Median wall-clock time per call for 2D, 3D, and 4D inputs. Both
+  axes use logarithmic scales. Rank-3 and rank-4 inputs contain the same
+  number of matrix products and therefore have similar total work.}
+  \label{fig:timing}
+\end{figure}
+
+\begin{table}[t]
+\caption{Measured median times and speedup. ``Work'' is the number of
+independent matrices in one call. Times are milliseconds; the final column is
+$S=t_{\numpy}/t_{\pytorch}$.}
+\label{tab:measurements}
+\centering
+\small
+\begin{tabular}{@{}rrrrrr@{}}
+\toprule
+Rank & Size $s$ & Work & \numpy (ms) & \pytorch (ms) & $S$ \\
+\midrule
+2D & 64   & 1 & 0.0234 & 0.0236 & 0.99 \\
+2D & 128  & 1 & 0.1137 & 0.0349 & 3.26 \\
+2D & 256  & 1 & 0.2075 & 0.1411 & 1.47 \\
+2D & 512  & 1 & 1.3086 & 0.9295 & 1.41 \\
+2D & 1024 & 1 & 7.3190 & 7.3079 & 1.00 \\
+\midrule
+3D & 64   & 4 & 0.0533 & 0.0309 & 1.73 \\
+3D & 128  & 4 & 0.4636 & 0.1049 & 4.42 \\
+3D & 256  & 4 & 1.0342 & 0.5660 & 1.83 \\
+3D & 512  & 4 & 4.9620 & 3.9872 & 1.24 \\
+3D & 1024 & 4 & 30.7035 & 28.7861 & 1.07 \\
+\midrule
+4D & 64   & 4 & 0.0440 & 0.0264 & 1.66 \\
+4D & 128  & 4 & 0.4721 & 0.1150 & 4.10 \\
+4D & 256  & 4 & 1.0764 & 0.5820 & 1.85 \\
+4D & 512  & 4 & 5.5114 & 4.2699 & 1.29 \\
+4D & 1024 & 4 & 31.2961 & 28.6942 & 1.09 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.68\linewidth]{speedup_by_rank.pdf}
+  \caption{Speedup $S=t_{\numpy}/t_{\pytorch}$ as a function of matrix size.
+  The dashed line at $S=1$ marks equal median time. The advantage peaks near
+  size 128 and shrinks as the matrices become large.}
+  \label{fig:speedup}
+\end{figure}
+
+\subsection{Speedup versus size}
+
+Figure~\ref{fig:speedup} makes the non-monotonic relation visible. The largest
+measured advantage occurs at $s=128$: 3.26$\times$ for 2D, 4.42$\times$ for 3D,
+and 4.10$\times$ for 4D. At $s=256$, the ratios fall to 1.47, 1.83, and 1.85.
+They continue to decrease at 512 and are close to one at 1024. The 2D 64 case
+is slightly below one (0.99), but its total time is only about 0.02 ms and the
+difference is not large enough to interpret as a stable reversal.
+
+The pattern is not a simple statement that one library is always faster. At
+128, \pytorch selects kernels that exploit the available threads more
+effectively in this environment. At 1024, both frameworks spend most of their
+time on mature large GEMM paths and become memory- and compute-bound. The
+remaining kernel difference is then small compared with the work itself.
+
+\subsection{Speedup versus rank}
+
+The 3D and 4D curves almost overlap because both execute four matrix products.
+At 128, their \pytorch times differ by only 0.0101 ms (0.1049 versus 0.1150
+ms), while the \numpy times differ by 0.0085 ms. At 1024, the four-matrix
+conditions are again within about 3\% of each other. The extra leading
+dimension therefore adds little cost once the batched call has been dispatched.
+
+There is, however, a clear difference from the 2D curve. At 128, the 3D/4D
+speedup is above 4$\times$, compared with 3.26$\times$ for a single matrix.
+This indicates that \pytorch's batched path handles this four-matrix workload
+particularly well relative to \numpy in the measured configuration. At 512,
+the rank-3/4 ratios are 1.24 and 1.29, whereas the 2D ratio is 1.41, so the
+ordering changes with size. The interaction, not rank alone, is the useful
+observation.
+
+\section{Interpretation and Limitations}\label{sec:discussion}
+
+The timing includes Python dispatch, output allocation, and the selected BLAS
+or tensor kernel. It is therefore an end-to-end call benchmark rather than a
+microbenchmark of one arithmetic loop. This choice is appropriate for the
+assignment because it measures what a user experiences when calling either
+library. It also explains why very small inputs are dominated by fixed costs:
+at $s=64$, a 2D product performs only about 0.52 million floating-point
+operations, so scheduler noise can be comparable to the useful compute.
+
+The two frameworks do not use identical numerical backends. \numpy in this
+environment uses OpenBLAS \citep{openblas}, while \pytorch uses its own CPU
+dispatch and MKL-enabled kernels. The comparison therefore answers a practical
+question -- which call is faster in this installation -- rather than proving
+that one internal algorithm is universally superior. Library versions, CPU
+frequency, thermal state, background processes, and BLAS builds can change the
+absolute times and the location of the crossover.
+
+Several controls improve reproducibility. Both frameworks use the same values,
+dtype, shapes, and eight-thread limit; inputs stay resident in memory; timed
+order alternates; warm-ups precede measurement; and medians suppress isolated
+outliers. The complete repeated configuration is recoverable from
+\texttt{benchmark\_task1.py}, while \texttt{results.json} records the hardware,
+versions, repetition policy, median times, and standard deviations. The raw
+measurements are not intended to support claims about GPU acceleration or
+training throughput. Those belong to Task~2, which is omitted from the short
+submission.
+
+The main limitation is that measurements come from one laptop CPU and one run
+of the complete benchmark. A stronger study would repeat the full experiment
+across several days, randomise workload order globally, and compare multiple
+BLAS backends. Those additions are outside the short scope. Within the tested
+conditions, the data support a narrower conclusion: \pytorch has a substantial
+advantage near 128, remains faster through the middle sizes, and approaches
+parity when the matrices are large.
+
+\section{Conclusion}\label{sec:conclusion}
+
+This short assignment implements and measures CPU matrix multiplication in
+\numpy and \pytorch. The observed speedup depends strongly on matrix size. It
+peaks at size 128 in all three tensor ranks and declines toward one at size
+1024. Rank-3 and rank-4 inputs behave similarly when they contain the same
+number of independent products, showing that total batched work is a more
+useful explanatory variable than the number of tensor dimensions by itself.
+The accompanying code and JSON preserve the exact experiment, while the two
+figures expose both the absolute timing trend and the speedup relation.
+
+\begingroup
+\small
+\setlength{\bibsep}{2pt}
+\bibliographystyle{plainnat}
+\bibliography{reference}
+\endgroup
+
+\end{document}

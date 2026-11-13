@@ -1,0 +1,188 @@
+{
+  "hardware": {
+    "cpu": "AMD Ryzen 7 5800H with Radeon Graphics",
+    "gpu_present_but_not_used": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+    "logical_processors": 16,
+    "system": "Windows 11",
+    "python": "3.14.4",
+    "numpy": "2.4.4",
+    "torch": "2.12.0+cu126",
+    "torch_cuda_build": "12.6",
+    "torch_mkl_available": true,
+    "device": "cpu",
+    "dtype": "float32",
+    "threads": 8,
+    "batch": 4,
+    "warmups": 2,
+    "repeat_policy": "Interleaved repetitions; count targets the slowest framework at 0.30 s, bounded to [3, 20]; median reported."
+  },
+  "task1": {
+    "measurements": [
+      {
+        "ndim": 2,
+        "size": 64,
+        "numpy_time": 2.34499967e-05,
+        "torch_time": 2.36000051e-05,
+        "speedup_numpy_over_torch": 0.993643712,
+        "repeats": 20,
+        "estimated_flops": 524288,
+        "numpy_time_stddev": 2.69550849e-06,
+        "torch_time_stddev": 6.12159854e-06
+      },
+      {
+        "ndim": 2,
+        "size": 128,
+        "numpy_time": 0.00011365,
+        "torch_time": 3.49000038e-05,
+        "speedup_numpy_over_torch": 3.25644662,
+        "repeats": 20,
+        "estimated_flops": 4194304,
+        "numpy_time_stddev": 2.07054356e-05,
+        "torch_time_stddev": 1.21043952e-05
+      },
+      {
+        "ndim": 2,
+        "size": 256,
+        "numpy_time": 0.000207500008,
+        "torch_time": 0.000141050004,
+        "speedup_numpy_over_torch": 1.47110955,
+        "repeats": 20,
+        "estimated_flops": 33554432,
+        "numpy_time_stddev": 3.09635397e-05,
+        "torch_time_stddev": 5.05805161e-05
+      },
+      {
+        "ndim": 2,
+        "size": 512,
+        "numpy_time": 0.00130865,
+        "torch_time": 0.000929450005,
+        "speedup_numpy_over_torch": 1.40798321,
+        "repeats": 20,
+        "estimated_flops": 268435456,
+        "numpy_time_stddev": 0.000224195963,
+        "torch_time_stddev": 0.000208781853
+      },
+      {
+        "ndim": 2,
+        "size": 1024,
+        "numpy_time": 0.007319,
+        "torch_time": 0.00730785,
+        "speedup_numpy_over_torch": 1.00152576,
+        "repeats": 20,
+        "estimated_flops": 2147483648,
+        "numpy_time_stddev": 0.00155501955,
+        "torch_time_stddev": 0.000601020745
+      },
+      {
+        "ndim": 3,
+        "size": 64,
+        "numpy_time": 5.32999984e-05,
+        "torch_time": 3.09000025e-05,
+        "speedup_numpy_over_torch": 1.7249189,
+        "repeats": 20,
+        "estimated_flops": 2097152,
+        "numpy_time_stddev": 2.95578217e-05,
+        "torch_time_stddev": 4.98677126e-06
+      },
+      {
+        "ndim": 3,
+        "size": 128,
+        "numpy_time": 0.000463649994,
+        "torch_time": 0.000104850005,
+        "speedup_numpy_over_torch": 4.4220312,
+        "repeats": 20,
+        "estimated_flops": 16777216,
+        "numpy_time_stddev": 6.87099603e-05,
+        "torch_time_stddev": 2.19227537e-05
+      },
+      {
+        "ndim": 3,
+        "size": 256,
+        "numpy_time": 0.0010342,
+        "torch_time": 0.000565950002,
+        "speedup_numpy_over_torch": 1.82736991,
+        "repeats": 20,
+        "estimated_flops": 134217728,
+        "numpy_time_stddev": 0.00017443512,
+        "torch_time_stddev": 8.52496643e-05
+      },
+      {
+        "ndim": 3,
+        "size": 512,
+        "numpy_time": 0.004962,
+        "torch_time": 0.00398715,
+        "speedup_numpy_over_torch": 1.24449795,
+        "repeats": 20,
+        "estimated_flops": 1073741824,
+        "numpy_time_stddev": 0.00050132685,
+        "torch_time_stddev": 0.000230404538
+      },
+      {
+        "ndim": 3,
+        "size": 1024,
+        "numpy_time": 0.0307035,
+        "torch_time": 0.0287861,
+        "speedup_numpy_over_torch": 1.06660854,
+        "repeats": 11,
+        "estimated_flops": 8589934592,
+        "numpy_time_stddev": 0.00112949451,
+        "torch_time_stddev": 0.00105939125
+      },
+      {
+        "ndim": 4,
+        "size": 64,
+        "numpy_time": 4.40000003e-05,
+        "torch_time": 2.64499977e-05,
+        "speedup_numpy_over_torch": 1.66351623,
+        "repeats": 20,
+        "estimated_flops": 2097152,
+        "numpy_time_stddev": 2.11408844e-06,
+        "torch_time_stddev": 3.01001523e-05
+      },
+      {
+        "ndim": 4,
+        "size": 128,
+        "numpy_time": 0.00047205,
+        "torch_time": 0.000115049996,
+        "speedup_numpy_over_torch": 4.10299885,
+        "repeats": 20,
+        "estimated_flops": 16777216,
+        "numpy_time_stddev": 6.23561167e-05,
+        "torch_time_stddev": 4.51364566e-05
+      },
+      {
+        "ndim": 4,
+        "size": 256,
+        "numpy_time": 0.0010764,
+        "torch_time": 0.000581999993,
+        "speedup_numpy_over_torch": 1.84948456,
+        "repeats": 20,
+        "estimated_flops": 134217728,
+        "numpy_time_stddev": 0.000221779752,
+        "torch_time_stddev": 0.000100772495
+      },
+      {
+        "ndim": 4,
+        "size": 512,
+        "numpy_time": 0.00551135001,
+        "torch_time": 0.00426995,
+        "speedup_numpy_over_torch": 1.2907294,
+        "repeats": 20,
+        "estimated_flops": 1073741824,
+        "numpy_time_stddev": 0.00751910661,
+        "torch_time_stddev": 0.00162748418
+      },
+      {
+        "ndim": 4,
+        "size": 1024,
+        "numpy_time": 0.0312961,
+        "torch_time": 0.02869415,
+        "speedup_numpy_over_torch": 1.09067876,
+        "repeats": 10,
+        "estimated_flops": 8589934592,
+        "numpy_time_stddev": 0.00182890293,
+        "torch_time_stddev": 0.000802297043
+      }
+    ]
+  }
+}
