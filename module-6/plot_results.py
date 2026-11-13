@@ -16,7 +16,8 @@ from matplotlib.ticker import FuncFormatter, LogLocator
 
 
 NUMPY_COLOR = "#3b6ea8"
-TORCH_COLOR = "#d97706"
+TORCH_CPU_COLOR = "#d97706"
+TORCH_GPU_COLOR = "#2a8c82"
 RANK_COLORS = ("#1f6f78", "#b45309", "#6d4c9a")
 
 
@@ -65,7 +66,7 @@ def plot_timing(
         records = grouped[rank]
         sizes = [record["size"] for record in records]
         numpy_ms = [1000 * record["numpy_time"] for record in records]
-        torch_ms = [1000 * record["torch_time"] for record in records]
+        torch_cpu_ms = [1000 * record["torch_time"] for record in records]
         axis.plot(
             sizes,
             numpy_ms,
@@ -77,13 +78,24 @@ def plot_timing(
         )
         axis.plot(
             sizes,
-            torch_ms,
-            color=TORCH_COLOR,
+            torch_cpu_ms,
+            color=TORCH_CPU_COLOR,
             marker="s",
             markersize=3.2,
             linewidth=1.2,
-            label="PyTorch",
+            label="PyTorch CPU",
         )
+        if "torch_gpu_time" in records[0]:
+            torch_gpu_ms = [1000 * record["torch_gpu_time"] for record in records]
+            axis.plot(
+                sizes,
+                torch_gpu_ms,
+                color=TORCH_GPU_COLOR,
+                marker="^",
+                markersize=3.2,
+                linewidth=1.2,
+                label="PyTorch CUDA",
+            )
         axis.set_xscale("log", base=2)
         axis.set_yscale("log")
         axis.set_title(f"{rank}D input", fontsize=8.5, pad=4)
@@ -103,7 +115,7 @@ def plot_timing(
         handles,
         labels,
         loc="upper center",
-        ncol=2,
+        ncol=3,
         frameon=False,
         fontsize=7.8,
         bbox_to_anchor=(0.5, 1.04),
@@ -113,42 +125,82 @@ def plot_timing(
     plt.close(figure)
 
 
-def plot_speedup(
+def plot_speedups(
     grouped: Dict[int, List[Dict[str, float]]],
     output: Path,
 ) -> None:
-    figure, axis = plt.subplots(figsize=(3.55, 2.42))
-    for color, rank in zip(RANK_COLORS, sorted(grouped)):
-        records = grouped[rank]
-        sizes = [record["size"] for record in records]
-        speedups = [
-            record["numpy_time"] / record["torch_time"] for record in records
-        ]
-        axis.plot(
-            sizes,
-            speedups,
-            color=color,
-            marker=("o", "s", "^")[rank - 2],
-            markersize=3.4,
-            linewidth=1.2,
-            label=f"{rank}D",
+    has_gpu = any("torch_gpu_time" in record for records in grouped.values() for record in records)
+    ratio_specs = [
+        (
+            "NumPy CPU / PyTorch CPU",
+            lambda record: record["numpy_time"] / record["torch_time"],
         )
-    axis.axhline(
-        1.0,
-        color="#666666",
-        linewidth=0.8,
-        linestyle=(0, (3, 2)),
-        zorder=0,
+    ]
+    if has_gpu:
+        ratio_specs.extend(
+            [
+                (
+                    "NumPy CPU / PyTorch CUDA",
+                    lambda record: record["numpy_time"] / record["torch_gpu_time"],
+                ),
+                (
+                    "PyTorch CPU / PyTorch CUDA",
+                    lambda record: record["torch_time"] / record["torch_gpu_time"],
+                ),
+            ]
+        )
+
+    figure, axes = plt.subplots(
+        1,
+        len(ratio_specs),
+        figsize=(7.1, 2.45),
+        sharey=True,
     )
-    axis.set_xscale("log", base=2)
-    axis.set_xlabel("Matrix size (elements per side)", fontsize=7.8)
-    axis.set_ylabel("NumPy time / PyTorch time", fontsize=7.8)
-    sizes = sorted({record["size"] for records in grouped.values() for record in records})
-    axis.set_xticks(sizes)
-    axis.get_xaxis().set_major_formatter(FuncFormatter(lambda value, _: f"{int(value)}"))
-    axis.legend(frameon=False, fontsize=7.5, ncol=3, loc="best")
-    style_axis(axis)
-    figure.tight_layout()
+    if len(ratio_specs) == 1:
+        axes = [axes]
+    sizes = sorted(
+        {record["size"] for records in grouped.values() for record in records}
+    )
+    for axis, (title, ratio_function) in zip(axes, ratio_specs):
+        for color, rank in zip(RANK_COLORS, sorted(grouped)):
+            records = grouped[rank]
+            axis.plot(
+                [record["size"] for record in records],
+                [ratio_function(record) for record in records],
+                color=color,
+                marker=("o", "s", "^")[rank - 2],
+                markersize=3.4,
+                linewidth=1.2,
+                label=f"{rank}D",
+            )
+        axis.axhline(
+            1.0,
+            color="#666666",
+            linewidth=0.8,
+            linestyle=(0, (3, 2)),
+            zorder=0,
+        )
+        axis.set_xscale("log", base=2)
+        axis.set_yscale("log")
+        axis.set_title(title, fontsize=8.2, pad=4)
+        axis.set_xlabel("Matrix size", fontsize=7.8)
+        axis.set_xticks(sizes)
+        axis.get_xaxis().set_major_formatter(
+            FuncFormatter(lambda value, _: f"{int(value)}")
+        )
+        style_axis(axis)
+    axes[0].set_ylabel("Speedup ratio (log scale)", fontsize=7.8)
+    handles, labels = axes[0].get_legend_handles_labels()
+    figure.legend(
+        handles,
+        labels,
+        loc="upper center",
+        frameon=False,
+        fontsize=7.5,
+        ncol=3,
+        bbox_to_anchor=(0.5, 1.04),
+    )
+    figure.tight_layout(rect=(0, 0, 1, 0.93), w_pad=0.7)
     figure.savefig(output, bbox_inches="tight")
     plt.close(figure)
 
@@ -160,7 +212,7 @@ def main() -> int:
     grouped = group_by_rank(payload["task1"]["measurements"])
     args.output_dir.mkdir(parents=True, exist_ok=True)
     plot_timing(grouped, args.output_dir / "timing_by_rank.pdf")
-    plot_speedup(grouped, args.output_dir / "speedup_by_rank.pdf")
+    plot_speedups(grouped, args.output_dir / "speedup_by_rank.pdf")
     print(f"Wrote figures to {args.output_dir}")
     return 0
 

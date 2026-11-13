@@ -10,7 +10,7 @@
 | **Module 3** | 认知推理：预测误差、婴儿探索与 AI 学习原则（6 页 full essay） | [`module-3/`](module-3) |
 | **Module 4** | 机器人：方块堆叠规划、抓取避碰与深度相机闭环感知（5 页 short report） | [`module-4/`](module-4) |
 | **Module 5** | 自然语言处理：用 BCG 记录 Agent 轨迹，并通过最薄弱信念验证反馈干预 Agent（5 页 short report） | [`module-5/`](module-5) |
-| **Module 6** | 硬件加速：NumPy/PyTorch CPU 矩阵乘法的尺寸、秩与加速比基准（4 页 short report） | [`module-6/`](module-6) |
+| **Module 6** | 硬件加速：NumPy CPU、PyTorch CPU、PyTorch CUDA 矩阵乘法三路对比与底层原理（3 页 short report） | [`module-6/`](module-6) |
 
 ## Module 0
 
@@ -57,7 +57,7 @@
 
 ## Module 6
 
-- `module-6/benchmark_task1.py` — 固定 dtype、线程数和输入，交错测量 NumPy/PyTorch CPU `matmul`
-- `module-6/results.json` — 5 个尺寸 × 3 种张量秩的 15 组实测中位耗时
-- `module-6/report/report.pdf` — 4 页 short report（耗时图、加速比图、完整数值表与限制分析）
+- `module-6/benchmark_task1.py` — 固定 dtype、线程数和输入，轮换测量 NumPy CPU、PyTorch CPU、PyTorch CUDA `matmul`
+- `module-6/results.json` — 5 个尺寸 × 3 种张量秩的 15 组三方法实测中位耗时
+- `module-6/report/report.pdf` — 3 页 short report（三路耗时图、三组加速比图、数值表、BLAS/cuBLAS 原理比较）
 - `module-6/ML6_2510124204_submission.zip` — Gradescope short assignment 提交包

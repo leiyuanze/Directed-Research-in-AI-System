@@ -6,8 +6,7 @@
 \usepackage[final]{template22}
 \input{config.tex}
 
-\title{Matrix Multiplication in NumPy and PyTorch:\\
-A Controlled CPU Timing Study}
+\title{CPU and GPU Matrix Multiplication in NumPy and PyTorch}
 
 \author{%
   Yuanze Lei \quad 2510124204\\
@@ -18,72 +17,45 @@ A Controlled CPU Timing Study}
 \maketitle
 
 \begin{abstract}
-This report compares matrix multiplication through \numpy and \pytorch on the
-same CPU, input dtype, problem shapes, and thread budget. The benchmark covers
-five square sizes and three tensor ranks, producing 15 measured conditions on
-an AMD Ryzen 7 5800H. In this controlled run, \pytorch has its clearest
-advantage at size 128, where the median speedup over \numpy is 3.26$\times$ for
-2D inputs and 4.42$\times$ for 3D inputs. The advantage narrows as matrices
-grow and is approximately parity at size 1024. Rank-3 and rank-4 inputs perform
-almost identically because both process four independent matrices, showing that
-the amount of batched work matters more than the extra indexing dimension
-alone. The results are hardware- and library-specific, so the report separates
-observed timings from general claims about either framework.
+This short study compares three matrix-multiplication methods on identical
+inputs: NumPy CPU, PyTorch CPU, and PyTorch CUDA. We measure five matrix sizes
+and three tensor ranks on an AMD Ryzen 7 5800H and an NVIDIA RTX 3050 Ti.
+PyTorch CPU has its largest advantage near size 128, but it approaches NumPy at
+size 1024. CUDA carries a clear launch and synchronization cost at sizes 64 and
+128; after the crossover near 256, it becomes decisively faster. At size 1024,
+CUDA is 9.57x to 13.78x faster than NumPy across the three ranks. We relate the
+curves to the CPU BLAS path and the GPU cuBLAS, SM, tiling, and memory path.
 \end{abstract}
 
-\section{Question and Scope}\label{sec:scope}
+\section{Scope and Setup}\label{sec:scope}
 
-Matrix multiplication is a basic operation in numerical computing and a useful
-stress test for software acceleration. A call that looks identical at the
-Python level can take different paths inside \numpy \citep{harris2020numpy} and
-\pytorch \citep{paszke2019pytorch}: data layout, dispatch, threading,
-allocation, and BLAS kernels all affect the measured time. We therefore ask two
-concrete questions:
-\begin{enumerate}[leftmargin=1.3em,itemsep=1pt,topsep=2pt]
-  \item How do the median call times of \numpy and \pytorch change with matrix
-        size?
-  \item How does the speedup ratio change with matrix size and tensor rank?
-\end{enumerate}
+All three methods compute the same \texttt{float32} products with fixed random
+seeds. NumPy CPU \citep{harris2020numpy} uses OpenBLAS \citep{openblas};
+PyTorch CPU \citep{paszke2019pytorch} uses MKL; PyTorch CUDA uses the GPU. The
+CPU runs use eight threads. CUDA inputs are copied to the GPU before timing, so
+the GPU result measures launch, output allocation, kernel execution, and
+completion, but excludes host-to-device transfer. This isolates the
+repeated-compute case where data already reside on the accelerator.
 
-The short assignment requires Task~1 only, so both frameworks run on the CPU.
-Keeping the device fixed isolates the framework and kernel-selection effect.
-It also avoids attributing a GPU advantage to the library name. The submitted
-script, JSON measurements, plots, and this report are the complete short
-submission.
-
-\section{Experimental Design}\label{sec:method}
-
-\subsection{Environment and controls}
-
-All measurements were collected on 2026-11-13. Table~\ref{tab:environment}
-records the execution environment. The machine also has an idle NVIDIA RTX
-3050 Ti Laptop GPU, but it was not used; both frameworks were explicitly kept
-on the CPU.
-
-\begin{table}[t]
-\caption{Controlled execution environment.}
+\begin{center}
+\captionof{table}{Measured environment and timing controls.}
 \label{tab:environment}
-\centering
 \small
 \begin{tabularx}{\linewidth}{@{}lX@{}}
 \toprule
-Component & Configuration \\
-\midrule
-CPU & AMD Ryzen 7 5800H, 8 cores / 16 logical processors, 3.2 GHz nominal \\
-Memory & 16 GiB \\
-Operating system & Windows 11, build 26300 \\
-Python & 3.9.12 \\
-\numpy & 2.4.4, linked to OpenBLAS 0.3.31 \\
-\pytorch & 2.12.0+cu126, CPU execution with MKL enabled \\
-Threads & 8 for OpenBLAS and PyTorch; one inter-op thread \\
-Data type & contiguous \texttt{float32} arrays and tensors \\
+CPU & AMD Ryzen 7 5800H, 8 cores / 16 threads, 8 threads used \\
+GPU & NVIDIA RTX 3050 Ti Laptop, 20 SMs, 4 GiB, compute capability 8.6 \\
+Software & Python 3.14.4, NumPy 2.4.4, PyTorch 2.12.0, CUDA 12.6 \\
+Precision & IEEE FP32; PyTorch TF32 disabled in this run \\
+GPU timing & \texttt{perf\_counter} plus \texttt{cuda.synchronize} \\
+Repeats & warm-up 5; median of 9--50 interleaved calls \\
 \bottomrule
 \end{tabularx}
-\end{table}
+\end{center}
 
-\subsection{Workloads}
+\subsection{Workloads and protocol}
 
-For side length $s$, the benchmark uses the following matched pairs of inputs:
+For side length $s$, the benchmark uses the matched shapes
 \begin{equation}\label{eq:shapes}
 \begin{aligned}
 \text{2D:}\quad &(\mathbf A,\mathbf B)\in\mathbb R^{s\times s}
@@ -94,172 +66,131 @@ For side length $s$, the benchmark uses the following matched pairs of inputs:
   \times \mathbb R^{2\times 2\times s\times s}.
 \end{aligned}
 \end{equation}
-The sizes are $s\in\{64,128,256,512,1024\}$. Rank-3 and rank-4 inputs both
-contain four independent matrix products. This lets the experiment compare
-rank at nearly constant arithmetic work instead of increasing rank and batch
-size at the same time.
+The sizes are $s\in\{64,128,256,512,1024\}$. Rank-3 and rank-4 cases both
+contain four matrix products, so they compare indexing dimension at nearly
+constant work. We verify CPU and CUDA outputs against NumPy with
+$\mathrm{rtol}=\mathrm{atol}=10^{-4}$.
 
-Both frameworks receive the same random values, generated with a fixed seed for
-each condition. Before timing, the implementation verifies that the two outputs
-agree with \texttt{np.allclose} using $\mathrm{rtol}=\mathrm{atol}=10^{-4}$.
-The timed expression is \texttt{np.matmul(A, B)} or
-\texttt{torch.matmul(A, B)}; input construction and device transfer are outside
-the timed region. Output allocation is included because it is part of a normal
-call. For each condition, two warm-up calls precede the measurements. Timed
-calls alternate between frameworks to reduce systematic cache and frequency
-bias. The reported value is the median of 10--20 calls, selected adaptively so
-that larger workloads receive fewer repetitions.
+The timed operations are \texttt{np.matmul}, CPU \texttt{torch.matmul}, and
+CUDA \texttt{torch.matmul}. Method order rotates between repetitions to reduce
+cache or frequency bias. The stored time is the median in seconds. Speedup is
+$S=t_{\mathrm{reference}}/t_{\mathrm{method}}$; values above one favor the
+denominator.
 
-\subsection{Metric}
+\section{Three-Method Results}\label{sec:results}
 
-For each matched condition, the improvement ratio is
-\begin{equation}\label{eq:speedup}
-  S(s,d)=\frac{\operatorname{median}(t_{\numpy}(s,d))}
-              {\operatorname{median}(t_{\pytorch}(s,d))}.
-\end{equation}
-Thus $S>1$ means that PyTorch is faster. Values near one indicate that the
-framework-level difference is small relative to run-to-run variation. Time is
-measured with \texttt{time.perf\_counter} and is stored in seconds in
-\texttt{results.json}; plots use milliseconds for readability.
-
-\section{Results}\label{sec:results}
-
-Figure~\ref{fig:timing} shows the median time per call. All conditions remain
-positive and finite, and the raw values are listed in
-Table~\ref{tab:measurements}. The dominant trend is the growth with matrix
-size. For 2D inputs, time rises from 0.023 ms at $s=64$ to 7.319 ms at
-$s=1024$. The rank-3 and rank-4 cases reach roughly 29--31 ms at $s=1024$
-because each call computes four matrices. This is consistent with the cubic
-increase in arithmetic work per matrix and the additional memory traffic of the
-batched outputs.
+Figure~\ref{fig:timing} shows the absolute times and Table~\ref{tab:results}
+lists every measurement. The two CPU curves are close at large sizes. At
+$s=1024$, PyTorch CPU is only 1.02x, 1.01x, and 1.05x faster than NumPy for
+2D, 3D, and 4D. Their largest gap is near 128, where PyTorch CPU is
+2.55x--3.84x faster in this environment.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{timing_by_rank.pdf}
-  \caption{Median wall-clock time per call for 2D, 3D, and 4D inputs. Both
-  axes use logarithmic scales. Rank-3 and rank-4 inputs contain the same
-  number of matrix products and therefore have similar total work.}
+  \caption{Median call time for the three methods. Both axes are logarithmic.
+  CUDA has nearly flat launch-dominated cost at small sizes and pulls away
+  once matrix work is large enough.}
   \label{fig:timing}
 \end{figure}
 
 \begin{table}[t]
-\caption{Measured median times and speedup. ``Work'' is the number of
-independent matrices in one call. Times are milliseconds; the final column is
-$S=t_{\numpy}/t_{\pytorch}$.}
-\label{tab:measurements}
+\caption{Measured median time in milliseconds. $S_{\mathrm{cpu}}$ compares
+PyTorch CPU with NumPy; $S_{\mathrm{gpu}}$ compares PyTorch CUDA with NumPy.}
+\label{tab:results}
 \centering
-\small
-\begin{tabular}{@{}rrrrrr@{}}
+\scriptsize
+\setlength{\tabcolsep}{4.2pt}
+\begin{tabular}{@{}rrrrrrr@{}}
 \toprule
-Rank & Size $s$ & Work & \numpy (ms) & \pytorch (ms) & $S$ \\
+Rank & $s$ & NumPy & Torch CPU & Torch CUDA & $S_{\mathrm{cpu}}$ & $S_{\mathrm{gpu}}$ \\
 \midrule
-2D & 64   & 1 & 0.0234 & 0.0236 & 0.99 \\
-2D & 128  & 1 & 0.1137 & 0.0349 & 3.26 \\
-2D & 256  & 1 & 0.2075 & 0.1411 & 1.47 \\
-2D & 512  & 1 & 1.3086 & 0.9295 & 1.41 \\
-2D & 1024 & 1 & 7.3190 & 7.3079 & 1.00 \\
+2D & 64   & 0.0213 & 0.0312 & 0.0835 & 0.68 & 0.25 \\
+2D & 128  & 0.1451 & 0.0568 & 0.1117 & 2.55 & 1.30 \\
+2D & 256  & 0.2624 & 0.1615 & 0.1232 & 1.62 & 2.13 \\
+2D & 512  & 1.3395 & 1.0357 & 0.2882 & 1.29 & 4.65 \\
+2D & 1024 & 7.4834 & 7.3206 & 0.7822 & 1.02 & 9.57 \\
 \midrule
-3D & 64   & 4 & 0.0533 & 0.0309 & 1.73 \\
-3D & 128  & 4 & 0.4636 & 0.1049 & 4.42 \\
-3D & 256  & 4 & 1.0342 & 0.5660 & 1.83 \\
-3D & 512  & 4 & 4.9620 & 3.9872 & 1.24 \\
-3D & 1024 & 4 & 30.7035 & 28.7861 & 1.07 \\
+3D & 64   & 0.0724 & 0.0707 & 0.1657 & 1.02 & 0.44 \\
+3D & 128  & 0.5230 & 0.1451 & 0.2149 & 3.60 & 2.43 \\
+3D & 256  & 1.1857 & 0.6512 & 0.2722 & 1.82 & 4.36 \\
+3D & 512  & 5.3887 & 4.2720 & 0.6135 & 1.26 & 8.78 \\
+3D & 1024 & 31.2711 & 31.0720 & 2.4242 & 1.01 & 12.90 \\
 \midrule
-4D & 64   & 4 & 0.0440 & 0.0264 & 1.66 \\
-4D & 128  & 4 & 0.4721 & 0.1150 & 4.10 \\
-4D & 256  & 4 & 1.0764 & 0.5820 & 1.85 \\
-4D & 512  & 4 & 5.5114 & 4.2699 & 1.29 \\
-4D & 1024 & 4 & 31.2961 & 28.6942 & 1.09 \\
+4D & 64   & 0.0712 & 0.0827 & 0.1698 & 0.86 & 0.42 \\
+4D & 128  & 0.5634 & 0.1467 & 0.1774 & 3.84 & 3.17 \\
+4D & 256  & 1.2474 & 0.7071 & 0.3391 & 1.76 & 3.68 \\
+4D & 512  & 5.5868 & 4.2406 & 0.6068 & 1.32 & 9.21 \\
+4D & 1024 & 30.4119 & 28.9698 & 2.2076 & 1.05 & 13.78 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.68\linewidth]{speedup_by_rank.pdf}
-  \caption{Speedup $S=t_{\numpy}/t_{\pytorch}$ as a function of matrix size.
-  The dashed line at $S=1$ marks equal median time. The advantage peaks near
-  size 128 and shrinks as the matrices become large.}
+  \includegraphics[width=\linewidth]{speedup_by_rank.pdf}
+  \caption{Three direct comparisons. Left: NumPy versus PyTorch CPU. Middle:
+  NumPy versus PyTorch CUDA. Right: PyTorch CPU versus CUDA. The dashed line
+  marks parity. All vertical axes are logarithmic.}
   \label{fig:speedup}
 \end{figure}
 
-\subsection{Speedup versus size}
+\subsection{GPU crossover and scaling}
 
-Figure~\ref{fig:speedup} makes the non-monotonic relation visible. The largest
-measured advantage occurs at $s=128$: 3.26$\times$ for 2D, 4.42$\times$ for 3D,
-and 4.10$\times$ for 4D. At $s=256$, the ratios fall to 1.47, 1.83, and 1.85.
-They continue to decrease at 512 and are close to one at 1024. The 2D 64 case
-is slightly below one (0.99), but its total time is only about 0.02 ms and the
-difference is not large enough to interpret as a stable reversal.
+Figure~\ref{fig:speedup} exposes the crossover. At $s=64$, CUDA takes
+0.0835--0.1698 ms, so launch and synchronization overhead dominate. PyTorch CPU
+is 2.7x, 2.3x, and 2.1x faster than CUDA in the three ranks. At $s=256$, CUDA
+has overtaken PyTorch CPU for every rank. At $s=1024$, PyTorch CPU/CUDA
+speedups are 9.36x, 12.82x, and 13.12x.
 
-The pattern is not a simple statement that one library is always faster. At
-128, \pytorch selects kernels that exploit the available threads more
-effectively in this environment. At 1024, both frameworks spend most of their
-time on mature large GEMM paths and become memory- and compute-bound. The
-remaining kernel difference is then small compared with the work itself.
+The batched ranks scale better than 2D. Four matrix products expose more
+parallel tiles to the 20 SMs. Rank-3 and rank-4 curves nearly coincide because
+they execute the same four products; flattening the batch is not the dominant
+cost. The 2D case has less parallel work and therefore a lower CUDA/CPU
+speedup at 1024.
 
-\subsection{Speedup versus rank}
+\section{Why the Paths Differ}\label{sec:principles}
 
-The 3D and 4D curves almost overlap because both execute four matrix products.
-At 128, their \pytorch times differ by only 0.0101 ms (0.1049 versus 0.1150
-ms), while the \numpy times differ by 0.0085 ms. At 1024, the four-matrix
-conditions are again within about 3\% of each other. The extra leading
-dimension therefore adds little cost once the batched call has been dispatched.
+\subsection{CPU: two BLAS paths}
 
-There is, however, a clear difference from the 2D curve. At 128, the 3D/4D
-speedup is above 4$\times$, compared with 3.26$\times$ for a single matrix.
-This indicates that \pytorch's batched path handles this four-matrix workload
-particularly well relative to \numpy in the measured configuration. At 512,
-the rank-3/4 ratios are 1.24 and 1.29, whereas the 2D ratio is 1.41, so the
-ordering changes with size. The interaction, not rank alone, is the useful
-observation.
+Neither CPU call performs a Python-level triple loop. NumPy dispatches to
+OpenBLAS, while PyTorch CPU dispatches to a compiled MKL-enabled path. Both use
+kernels that tile the matrices so a block remains in cache while many
+multiply-add operations are accumulated. They then vectorize with SIMD and
+distribute blocks across the eight CPU threads. The observed difference is
+mainly the dispatch and BLAS implementation, not NumPy arrays versus PyTorch
+tensors as containers. At large sizes both become limited by the same DRAM
+traffic and available CPU cores, which explains their convergence.
 
-\section{Interpretation and Limitations}\label{sec:discussion}
+\subsection{GPU: launch, SM tiling, and memory}
 
-The timing includes Python dispatch, output allocation, and the selected BLAS
-or tensor kernel. It is therefore an end-to-end call benchmark rather than a
-microbenchmark of one arithmetic loop. This choice is appropriate for the
-assignment because it measures what a user experiences when calling either
-library. It also explains why very small inputs are dominated by fixed costs:
-at $s=64$, a 2D product performs only about 0.52 million floating-point
-operations, so scheduler noise can be comparable to the useful compute.
+For CUDA, the Python caller reaches PyTorch's dispatcher, which launches a
+cuBLAS GEMM kernel \citep{nvidia2026cublas}. The CPU does not execute the
+multiply-add loop. The GPU schedules blocks of work on its 20 streaming
+multiprocessors (SMs). Threads load input tiles from GPU memory into shared
+memory or registers, reuse those tiles for several products, and write the
+output tile back to GPU memory. Many warps overlap arithmetic with memory
+latency \citep{nvidia2026cuda}. A rank-3 or rank-4 input becomes a batch of
+GEMMs, giving the scheduler more independent blocks.
 
-The two frameworks do not use identical numerical backends. \numpy in this
-environment uses OpenBLAS \citep{openblas}, while \pytorch uses its own CPU
-dispatch and MKL-enabled kernels. The comparison therefore answers a practical
-question -- which call is faster in this installation -- rather than proving
-that one internal algorithm is universally superior. Library versions, CPU
-frequency, thermal state, background processes, and BLAS builds can change the
-absolute times and the location of the crossover.
+This path has two fixed costs: launching the kernel and synchronizing the CPU
+with completion. They are small in absolute terms but dominate a 64 or 128
+problem. Once each GEMM contains enough work, thousands of active threads and
+high GPU memory bandwidth outweigh those costs. TF32 was disabled, so the
+result does not depend on tensor-core reduced-precision execution.
 
-Several controls improve reproducibility. Both frameworks use the same values,
-dtype, shapes, and eight-thread limit; inputs stay resident in memory; timed
-order alternates; warm-ups precede measurement; and medians suppress isolated
-outliers. The complete repeated configuration is recoverable from
-\texttt{benchmark\_task1.py}, while \texttt{results.json} records the hardware,
-versions, repetition policy, median times, and standard deviations. The raw
-measurements are not intended to support claims about GPU acceleration or
-training throughput. Those belong to Task~2, which is omitted from the short
-submission.
+\section{Limitations and Conclusion}\label{sec:conclusion}
 
-The main limitation is that measurements come from one laptop CPU and one run
-of the complete benchmark. A stronger study would repeat the full experiment
-across several days, randomise workload order globally, and compare multiple
-BLAS backends. Those additions are outside the short scope. Within the tested
-conditions, the data support a narrower conclusion: \pytorch has a substantial
-advantage near 128, remains faster through the middle sizes, and approaches
-parity when the matrices are large.
+The GPU numbers exclude PCIe transfer and use one laptop GPU. A one-off call
+would also pay the transfer cost, so resident data are the favorable but
+realistic case for repeated multiplication. Different BLAS libraries, clocks,
+or GPU architectures can move the crossover.
 
-\section{Conclusion}\label{sec:conclusion}
-
-This short assignment implements and measures CPU matrix multiplication in
-\numpy and \pytorch. The observed speedup depends strongly on matrix size. It
-peaks at size 128 in all three tensor ranks and declines toward one at size
-1024. Rank-3 and rank-4 inputs behave similarly when they contain the same
-number of independent products, showing that total batched work is a more
-useful explanatory variable than the number of tensor dimensions by itself.
-The accompanying code and JSON preserve the exact experiment, while the two
-figures expose both the absolute timing trend and the speedup relation.
+The three-method experiment still gives a stable practical conclusion.
+PyTorch CPU is useful around medium matrices but converges toward NumPy at
+large sizes. CUDA loses on launch overhead below roughly 256 and then scales
+strongly with matrix work, reaching 9.57x--13.78x over NumPy at 1024. The
+curves follow the expected CPU BLAS and GPU SM/cuBLAS execution models.
 
 \begingroup
 \small

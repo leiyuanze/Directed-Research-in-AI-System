@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Benchmark NumPy and PyTorch CPU matrix multiplication.
+"""Benchmark NumPy CPU, PyTorch CPU, and PyTorch CUDA matrix multiplication.
 
 The benchmark uses identical float32 inputs, a fixed CPU thread count, and
-interleaved measurements. The median wall-clock time is stored in results.json.
+interleaved measurements. GPU inputs are resident before timing, so the GPU
+result measures the launch-and-compute path rather than PCIe transfer.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 DEFAULT_SIZES = (64, 128, 256, 512, 1024)
@@ -48,6 +49,12 @@ def parse_args() -> argparse.Namespace:
         help="CPU threads used by BLAS and PyTorch (default: 8).",
     )
     parser.add_argument(
+        "--device",
+        choices=("both", "cpu"),
+        default="both",
+        help="Benchmark PyTorch CPU and CUDA together, or CPU only (default: both).",
+    )
+    parser.add_argument(
         "--batch",
         type=int,
         default=4,
@@ -56,8 +63,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--warmups",
         type=int,
-        default=2,
-        help="Warm-up calls per framework and workload (default: 2).",
+        default=5,
+        help="Warm-up calls per method and workload (default: 5).",
     )
     parser.add_argument(
         "--target-repeat-seconds",
@@ -74,8 +81,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-repeats",
         type=int,
-        default=20,
-        help="Maximum number of timed repetitions (default: 20).",
+        default=50,
+        help="Maximum number of timed repetitions (default: 50).",
     )
     parser.add_argument(
         "--output",
@@ -154,57 +161,62 @@ def matrix_count(rank: int, batch: int) -> int:
     raise ValueError(f"Unsupported rank: {rank}")
 
 
-def timed_call(function: Callable[[], object]) -> float:
+def timed_call(
+    function: Callable[[], object],
+    synchronize: Optional[Callable[[], None]] = None,
+) -> float:
+    if synchronize is not None:
+        synchronize()
     start = time.perf_counter()
     function()
+    if synchronize is not None:
+        synchronize()
     return time.perf_counter() - start
 
 
 def repeat_count(
-    numpy_probe_s: float,
-    torch_probe_s: float,
+    probe_seconds: Iterable[float],
     target_seconds: float,
     minimum: int,
     maximum: int,
 ) -> int:
-    slowest = max(numpy_probe_s, torch_probe_s, 1e-9)
+    slowest = max(max(probe_seconds, default=1e-9), 1e-9)
     count = math.ceil(target_seconds / slowest)
     return max(minimum, min(maximum, count))
 
 
-def benchmark_pair(
-    numpy_function: Callable[[], object],
-    torch_function: Callable[[], object],
+def benchmark_methods(
+    methods: Sequence[
+        Tuple[str, Callable[[], object], Optional[Callable[[], None]]]
+    ],
     warmups: int,
     target_seconds: float,
     minimum: int,
     maximum: int,
-) -> Tuple[List[float], List[float]]:
+) -> Dict[str, List[float]]:
     for _ in range(warmups):
-        numpy_function()
-        torch_function()
+        for _, function, synchronize in methods:
+            timed_call(function, synchronize)
 
-    numpy_probe_s = timed_call(numpy_function)
-    torch_probe_s = timed_call(torch_function)
+    probes = {
+        name: timed_call(function, synchronize)
+        for name, function, synchronize in methods
+    }
     repeats = repeat_count(
-        numpy_probe_s,
-        torch_probe_s,
+        probes.values(),
         target_seconds,
         minimum,
         maximum,
     )
 
-    numpy_samples: List[float] = []
-    torch_samples: List[float] = []
+    samples: Dict[str, List[float]] = {name: [] for name, _, _ in methods}
     for repetition in range(repeats):
-        # Alternate order to reduce systematic cache or frequency bias.
-        if repetition % 2 == 0:
-            numpy_samples.append(timed_call(numpy_function))
-            torch_samples.append(timed_call(torch_function))
-        else:
-            torch_samples.append(timed_call(torch_function))
-            numpy_samples.append(timed_call(numpy_function))
-    return numpy_samples, torch_samples
+        # Rotate method order to reduce systematic cache or frequency bias.
+        shift = repetition % len(methods)
+        ordered = list(methods[shift:]) + list(methods[:shift])
+        for name, function, synchronize in ordered:
+            samples[name].append(timed_call(function, synchronize))
+    return samples
 
 
 def rounded_seconds(value: float) -> float:
@@ -236,14 +248,22 @@ def main() -> int:
 
     torch.set_num_threads(args.threads)
     torch.set_num_interop_threads(1)
+    use_gpu = args.device == "both"
+    if use_gpu and not torch.cuda.is_available():
+        raise RuntimeError(
+            "CUDA was requested but is unavailable; use --device cpu to run CPU only."
+        )
 
     measurements: List[Dict[str, float]] = []
     print(
-        f"Backend: NumPy {np.__version__} vs PyTorch {torch.__version__} (CPU), "
-        f"{args.threads} threads"
+        f"Backends: NumPy {np.__version__}, PyTorch {torch.__version__} CPU"
+        + (f", PyTorch CUDA {torch.version.cuda}" if use_gpu else "")
     )
     print(f"CPU: {cpu_name()}")
-    print("rank  size     numpy ms    torch ms    speedup")
+    if use_gpu:
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print("GPU inputs are preloaded; timing excludes host-to-device transfer.")
+    print("rank  size     numpy ms   torch CPU ms   torch GPU ms    S_CPU    S_GPU")
 
     for rank in args.ranks:
         for size in args.sizes:
@@ -254,6 +274,8 @@ def main() -> int:
             right_np = rng.standard_normal(shape, dtype=np.float32)
             left_torch = torch.from_numpy(left_np)
             right_torch = torch.from_numpy(right_np)
+            left_gpu = left_torch.to("cuda") if use_gpu else None
+            right_gpu = right_torch.to("cuda") if use_gpu else None
 
             numpy_output = np.matmul(left_np, right_np)
             torch_output = torch.matmul(left_torch, right_torch).numpy()
@@ -262,16 +284,47 @@ def main() -> int:
                 raise RuntimeError(
                     f"Numerical mismatch for rank={rank}, size={size}: {error}"
                 )
-            del numpy_output, torch_output
+            del torch_output
+            if use_gpu:
+                torch_gpu_output = torch.matmul(left_gpu, right_gpu).cpu().numpy()
+                if not np.allclose(
+                    numpy_output, torch_gpu_output, rtol=1e-4, atol=1e-4
+                ):
+                    error = float(np.max(np.abs(numpy_output - torch_gpu_output)))
+                    raise RuntimeError(
+                        f"CUDA numerical mismatch for rank={rank}, size={size}: {error}"
+                    )
+                del torch_gpu_output
+            del numpy_output
 
-            numpy_samples, torch_samples = benchmark_pair(
-                lambda a=left_np, b=right_np: np.matmul(a, b),
-                lambda a=left_torch, b=right_torch: torch.matmul(a, b),
+            methods: List[
+                Tuple[str, Callable[[], object], Optional[Callable[[], None]]]
+            ] = [
+                ("numpy", lambda a=left_np, b=right_np: np.matmul(a, b), None),
+                (
+                    "torch_cpu",
+                    lambda a=left_torch, b=right_torch: torch.matmul(a, b),
+                    None,
+                ),
+            ]
+            if use_gpu:
+                methods.append(
+                    (
+                        "torch_gpu",
+                        lambda a=left_gpu, b=right_gpu: torch.matmul(a, b),
+                        torch.cuda.synchronize,
+                    )
+                )
+
+            samples = benchmark_methods(
+                methods,
                 warmups=args.warmups,
                 target_seconds=args.target_repeat_seconds,
                 minimum=args.min_repeats,
                 maximum=args.max_repeats,
             )
+            numpy_samples = samples["numpy"]
+            torch_samples = samples["torch_cpu"]
             numpy_time = statistics.median(numpy_samples)
             torch_time = statistics.median(torch_samples)
             speedup = numpy_time / torch_time
@@ -291,17 +344,47 @@ def main() -> int:
                 if len(torch_samples) > 1
                 else 0.0,
             }
+            if use_gpu:
+                gpu_samples = samples["torch_gpu"]
+                gpu_time = statistics.median(gpu_samples)
+                record.update(
+                    {
+                        "torch_gpu_time": rounded_seconds(gpu_time),
+                        "speedup_numpy_over_torch_gpu": rounded_seconds(
+                            numpy_time / gpu_time
+                        ),
+                        "speedup_torch_cpu_over_gpu": rounded_seconds(
+                            torch_time / gpu_time
+                        ),
+                        "torch_gpu_time_stddev": rounded_seconds(
+                            statistics.stdev(gpu_samples)
+                        )
+                        if len(gpu_samples) > 1
+                        else 0.0,
+                    }
+                )
             measurements.append(record)
-            print(
-                f"{rank:>4}  {size:>4}  {numpy_time * 1e3:>10.4f}  "
-                f"{torch_time * 1e3:>10.4f}  {speedup:>8.3f}x"
-            )
+            if use_gpu:
+                print(
+                    f"{rank:>4}  {size:>4}  {numpy_time * 1e3:>10.4f}  "
+                    f"{torch_time * 1e3:>12.4f}  {gpu_time * 1e3:>12.4f}  "
+                    f"{speedup:>7.2f}x  {numpy_time / gpu_time:>7.2f}x"
+                )
+            else:
+                print(
+                    f"{rank:>4}  {size:>4}  {numpy_time * 1e3:>10.4f}  "
+                    f"{torch_time * 1e3:>12.4f}  {'-':>12}  "
+                    f"{speedup:>7.2f}x  {'-':>7}"
+                )
             del left_np, right_np, left_torch, right_torch
+            if use_gpu:
+                del left_gpu, right_gpu
+                torch.cuda.empty_cache()
 
     result = {
         "hardware": {
             "cpu": cpu_name(),
-            "gpu_present_but_not_used": gpu_name(),
+            "gpu": torch.cuda.get_device_name(0) if use_gpu else gpu_name(),
             "logical_processors": os.cpu_count(),
             "system": f"{platform.system()} {platform.release()}",
             "python": platform.python_version(),
@@ -309,13 +392,23 @@ def main() -> int:
             "torch": torch.__version__,
             "torch_cuda_build": torch.version.cuda,
             "torch_mkl_available": torch.backends.mkl.is_available(),
-            "device": "cpu",
+            "device": "cpu_and_cuda" if use_gpu else "cpu",
             "dtype": "float32",
             "threads": args.threads,
             "batch": args.batch,
             "warmups": args.warmups,
+            "gpu_input_transfer_included": False,
+            "gpu_timing": (
+                "perf_counter plus torch.cuda.synchronize; launch, cached output "
+                "allocation, kernel execution, and completion are included"
+                if use_gpu
+                else "not used"
+            ),
+            "torch_tf32_allowed": bool(torch.backends.cuda.matmul.allow_tf32)
+            if use_gpu
+            else None,
             "repeat_policy": (
-                "Interleaved repetitions; count targets the slowest framework at "
+                "Interleaved repetitions; count targets the slowest method at "
                 f"{args.target_repeat_seconds:.2f} s, bounded to "
                 f"[{args.min_repeats}, {args.max_repeats}]; median reported."
             ),
@@ -324,6 +417,15 @@ def main() -> int:
             "measurements": measurements,
         },
     }
+    if use_gpu:
+        properties = torch.cuda.get_device_properties(0)
+        result["hardware"].update(
+            {
+                "gpu_memory_gib": round(properties.total_memory / (1024**3), 2),
+                "gpu_compute_capability": f"{properties.major}.{properties.minor}",
+                "gpu_multiprocessors": properties.multi_processor_count,
+            }
+        )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as stream:
