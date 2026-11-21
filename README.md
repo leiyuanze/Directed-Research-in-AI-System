@@ -11,6 +11,7 @@
 | **Module 4** | 机器人：方块堆叠规划、抓取避碰与深度相机闭环感知（5 页 short report） | [`module-4/`](module-4) |
 | **Module 5** | 自然语言处理：用 BCG 记录 Agent 轨迹，并通过最薄弱信念验证反馈干预 Agent（5 页 short report） | [`module-5/`](module-5) |
 | **Module 6** | 硬件加速：NumPy CPU、PyTorch CPU、PyTorch CUDA 矩阵乘法三路对比与底层原理（3 页 short report） | [`module-6/`](module-6) |
+| **Module 7** | 多智能体系统：CartPole 上的 PPO 实现、训练曲线与短报告（3 页 short report） | [`module-7/`](module-7) |
 
 ## Module 0
 
@@ -61,3 +62,11 @@
 - `module-6/results.json` — 5 个尺寸 × 3 种张量秩的 15 组三方法实测中位耗时
 - `module-6/report/report.pdf` — 3 页 short report（三路耗时图、三组加速比图、数值表、BLAS/cuBLAS 原理比较）
 - `module-6/ML6_2510124204_submission.zip` — Gradescope short assignment 提交包
+
+## Module 7
+
+- `module-7/code/ppo.py` — PPO actor、critic、动作采样和 clipped surrogate 更新
+- `module-7/code/rl_utils.py` — ReplayBuffer 采样、轨迹收集和 GAE
+- `module-7/results.json` — 500 回合原始 return、9 回合滑动平均和汇总统计
+- `module-7/report/report.pdf` — 3 页 short report（PPO 目标、实测曲线、有限时间限制）
+- `module-7/ML7_2510124204_submission.zip` — Gradescope short assignment 提交包
